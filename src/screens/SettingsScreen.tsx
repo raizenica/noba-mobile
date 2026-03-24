@@ -1,5 +1,6 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback} from 'react';
 import {View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {get, clearAuth, getServerUrl} from '../services/api';
 import {usePolling} from '../hooks/usePolling';
@@ -58,8 +59,10 @@ export default function SettingsScreen({onLogout}: Props) {
 
   const comp = health?.components;
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, {paddingTop: insets.top}]}>
       <Text style={styles.title}>Settings</Text>
 
       <Card title="Profile">

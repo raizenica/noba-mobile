@@ -1,5 +1,6 @@
 import React, {useCallback} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {get} from '../services/api';
 import {usePolling} from '../hooks/usePolling';
@@ -8,14 +9,13 @@ import Card from '../components/Card';
 
 interface Agent {
   hostname: string;
-  status: string;
-  cpu?: number;
-  mem?: number;
-  uptime?: string;
-  version?: string;
-  os?: string;
-  lastSeen?: number;
-  disks?: Array<{mount: string; percent: number}>;
+  cpu_percent: number;
+  mem_percent: number;
+  online: boolean;
+  platform: string;
+  uptime_s: number;
+  arch: string;
+  disks: Array<{mount: string; percent: number}>;
 }
 
 export default function AgentsScreen() {
@@ -24,37 +24,38 @@ export default function AgentsScreen() {
     return (stats?.agents || []) as Agent[];
   }, []);
   const {data, loading, error, refresh} = usePolling(fetcher, 10000);
+  const insets = useSafeAreaInsets();
 
   const agents = data || [];
 
   const renderAgent = ({item}: {item: Agent}) => (
-    <Card accent={item.status === 'online' ? colors.success : colors.danger}>
+    <Card accent={item.online ? colors.success : colors.danger}>
       <View style={styles.agentHeader}>
         <Text style={styles.hostname}>{item.hostname}</Text>
-        <StatusBadge status={item.status || 'unknown'} size="md" />
+        <StatusBadge status={item.online ? 'online' : 'offline'} size="md" />
       </View>
 
-      {item.status === 'online' && (
+      {item.online && (
         <>
           <View style={styles.metricsRow}>
             <View style={styles.metric}>
-              <Text style={styles.metricValue}>{(item.cpu ?? 0).toFixed(0)}%</Text>
+              <Text style={styles.metricValue}>{(item.cpu_percent ?? 0).toFixed(0)}%</Text>
               <Text style={styles.metricLabel}>CPU</Text>
             </View>
             <View style={styles.metric}>
-              <Text style={styles.metricValue}>{(item.mem ?? 0).toFixed(0)}%</Text>
+              <Text style={styles.metricValue}>{(item.mem_percent ?? 0).toFixed(0)}%</Text>
               <Text style={styles.metricLabel}>Memory</Text>
             </View>
             <View style={styles.metric}>
-              <Text style={styles.metricValue}>{item.version || '--'}</Text>
-              <Text style={styles.metricLabel}>Version</Text>
+              <Text style={styles.metricValue}>{item.arch || '--'}</Text>
+              <Text style={styles.metricLabel}>Arch</Text>
             </View>
           </View>
 
           {item.disks && item.disks.length > 0 && (
             <View style={styles.disksRow}>
-              {item.disks.slice(0, 3).map((d, i) => (
-                <Text key={i} style={styles.diskText}>
+              {item.disks.slice(0, 4).map((d, i) => (
+                <Text key={i} style={[styles.diskText, {color: d.percent > 90 ? colors.danger : d.percent > 75 ? colors.warning : colors.textMuted}]}>
                   {d.mount}: {d.percent.toFixed(0)}%
                 </Text>
               ))}
@@ -63,12 +64,12 @@ export default function AgentsScreen() {
         </>
       )}
 
-      {item.os && <Text style={styles.os}>{item.os}</Text>}
+      {item.platform ? <Text style={styles.platform}>{item.platform}</Text> : null}
     </Card>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: insets.top}]}>
       <Text style={styles.title}>Agents</Text>
       <FlatList
         data={agents}
@@ -94,8 +95,8 @@ const styles = StyleSheet.create({
   metricValue: {fontSize: fontSize.lg, fontWeight: '800', color: colors.text},
   metricLabel: {fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2},
   disksRow: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm},
-  diskText: {color: colors.textMuted, fontSize: fontSize.xs},
-  os: {color: colors.textDim, fontSize: fontSize.xs, marginTop: spacing.sm},
+  diskText: {fontSize: fontSize.xs},
+  platform: {color: colors.textDim, fontSize: fontSize.xs, marginTop: spacing.sm},
   empty: {color: colors.textMuted, textAlign: 'center', marginTop: spacing.xxl, fontSize: fontSize.md},
   error: {color: colors.danger, textAlign: 'center', marginTop: spacing.sm},
 });

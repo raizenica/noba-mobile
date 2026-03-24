@@ -1,5 +1,6 @@
 import React, {useCallback} from 'react';
 import {View, Text, ScrollView, StyleSheet, RefreshControl} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize} from '../theme/colors';
 import {get} from '../services/api';
 import {usePolling} from '../hooks/usePolling';
@@ -11,9 +12,16 @@ interface Stats {
   memPercent?: number;
   swapPercent?: number;
   uptime?: string;
-  diskPercent?: number;
-  services?: Record<string, any>;
-  agents?: any[];
+  disks?: Array<{mount: string; percent: number}>;
+  services?: Array<{name: string; status: string}>;
+  agents?: Array<{
+    hostname: string;
+    cpu_percent: number;
+    mem_percent: number;
+    online: boolean;
+    platform: string;
+    disks: Array<{mount: string; percent: number}>;
+  }>;
   collector_status?: string;
   [key: string]: any;
 }
@@ -41,21 +49,26 @@ const gaugeStyles = StyleSheet.create({
 export default function DashboardScreen() {
   const fetcher = useCallback(() => get<Stats>('/api/stats'), []);
   const {data, loading, error, refresh} = usePolling(fetcher, 5000);
+  const insets = useSafeAreaInsets();
 
   const cpu = data?.cpuPercent ?? 0;
   const mem = data?.memPercent ?? 0;
   const swap = data?.swapPercent ?? 0;
-  const disk = data?.diskPercent ?? 0;
+  const rootDisk = data?.disks?.find(d => d.mount === '/');
+  const disk = rootDisk?.percent ?? 0;
 
   const agents = data?.agents ?? [];
-  const onlineAgents = agents.filter((a: any) => a.status === 'online').length;
+  const onlineAgents = agents.filter(a => a.online).length;
+
+  const services = data?.services ?? [];
+  const servicesUp = services.filter((s: any) => s.status === 'running' || s.status === 'active').length;
 
   const colorFor = (v: number) =>
     v > 90 ? colors.danger : v > 70 ? colors.warning : colors.success;
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, {paddingTop: insets.top}]}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}>
       <View style={styles.header}>
         <Text style={styles.title}>Dashboard</Text>
@@ -69,10 +82,10 @@ export default function DashboardScreen() {
         <GaugeBar label="Disk" value={disk} color={colorFor(disk)} />
       </Card>
 
-      <Card title="Agents" accent={onlineAgents === agents.length ? colors.success : colors.warning}>
+      <Card title="Agents" accent={onlineAgents === agents.length && agents.length > 0 ? colors.success : agents.length > 0 ? colors.warning : colors.textMuted}>
         <View style={styles.statRow}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{onlineAgents}</Text>
+            <Text style={[styles.statValue, {color: onlineAgents > 0 ? colors.success : colors.textMuted}]}>{onlineAgents}</Text>
             <Text style={styles.statLabel}>Online</Text>
           </View>
           <View style={styles.stat}>
@@ -80,11 +93,11 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
         </View>
-        {agents.slice(0, 5).map((agent: any, i: number) => (
+        {agents.slice(0, 5).map((agent, i) => (
           <View key={i} style={styles.agentRow}>
-            <StatusBadge status={agent.status || 'unknown'} />
-            <Text style={styles.agentName}>{agent.hostname || agent.name || 'Unknown'}</Text>
-            <Text style={styles.agentCpu}>{(agent.cpu ?? 0).toFixed(0)}%</Text>
+            <StatusBadge status={agent.online ? 'online' : 'offline'} />
+            <Text style={styles.agentName}>{agent.hostname}</Text>
+            <Text style={styles.agentCpu}>{(agent.cpu_percent ?? 0).toFixed(0)}%</Text>
           </View>
         ))}
       </Card>
@@ -96,13 +109,26 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Uptime</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{Object.keys(data?.services || {}).length}</Text>
+            <Text style={styles.statValue}>{services.length}</Text>
             <Text style={styles.statLabel}>Services</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, {color: servicesUp === services.length && services.length > 0 ? colors.success : colors.textMuted}]}>{servicesUp}</Text>
+            <Text style={styles.statLabel}>Healthy</Text>
           </View>
         </View>
       </Card>
 
+      {data?.disks && data.disks.length > 1 && (
+        <Card title="Storage">
+          {data.disks.map((d, i) => (
+            <GaugeBar key={i} label={d.mount} value={d.percent} color={colorFor(d.percent)} />
+          ))}
+        </Card>
+      )}
+
       {error && <Text style={styles.error}>{error}</Text>}
+      <View style={{height: spacing.xxl}} />
     </ScrollView>
   );
 }

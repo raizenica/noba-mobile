@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from 'react';
-import {StatusBar} from 'react-native';
-import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {StatusBar, Text} from 'react-native';
+import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
@@ -59,18 +59,31 @@ export default function App() {
           },
         }}>
         <Tab.Navigator
-          screenOptions={({route}) => ({
-            tabBarStyle: {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              paddingBottom: 4,
-              height: 56,
-            },
-            tabBarLabelStyle: {fontSize: 11, fontWeight: '600'},
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.textMuted,
-            headerShown: false,
-          })}>
+          screenOptions={({route}) => {
+            const icons: Record<string, string> = {
+              Dashboard: '\u25A3',  // ▣
+              Alerts: '\u25C6',     // ◆
+              Agents: '\u25CE',     // ◎
+              Healing: '\u2725',    // ✥
+              Settings: '\u2699',   // ⚙
+            };
+            return {
+              tabBarIcon: ({color}) => (
+                <Text style={{fontSize: 18, color, marginBottom: -2}}>{icons[route.name] || '\u25CB'}</Text>
+              ),
+              tabBarStyle: {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+                paddingTop: 4,
+                paddingBottom: 30,
+                height: 74,
+              },
+              tabBarLabelStyle: {fontSize: 10, fontWeight: '600'},
+              tabBarActiveTintColor: colors.primary,
+              tabBarInactiveTintColor: colors.textMuted,
+              headerShown: false,
+            };
+          }}>
           <Tab.Screen name="Dashboard" component={DashboardScreen} />
           <Tab.Screen name="Alerts" component={AlertsScreen} />
           <Tab.Screen name="Agents" component={AgentsScreen} />

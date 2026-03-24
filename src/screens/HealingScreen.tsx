@@ -1,5 +1,6 @@
 import React, {useCallback, useState} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity, Alert} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {get, post} from '../services/api';
 import {usePolling} from '../hooks/usePolling';
@@ -96,8 +97,10 @@ export default function HealingScreen() {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: insets.top}]}>
       <Text style={styles.title}>Healing</Text>
       <Text style={styles.subtitle}>
         {queue.length} pending approval{queue.length !== 1 ? 's' : ''}

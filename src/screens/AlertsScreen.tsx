@@ -1,5 +1,6 @@
 import React, {useCallback} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {get} from '../services/api';
 import {usePolling} from '../hooks/usePolling';
@@ -53,8 +54,10 @@ export default function AlertsScreen() {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: insets.top}]}>
       <Text style={styles.title}>Alerts</Text>
       <FlatList
         data={alerts}
