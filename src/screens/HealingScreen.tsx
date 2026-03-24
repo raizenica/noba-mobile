@@ -25,11 +25,11 @@ function timeAgo(ts: number): string {
 }
 
 export default function HealingScreen() {
-  const fetcher = useCallback(() => get<{queue: Approval[]}>('/api/healing/approvals'), []);
+  const fetcher = useCallback(() => get<Approval[]>('/api/approvals'), []);
   const {data, loading, error, refresh} = usePolling(fetcher, 10000);
   const [acting, setActing] = useState<number | null>(null);
 
-  const queue = (data?.queue || []).filter((a: Approval) => a.status === 'pending');
+  const queue = (data || []).filter((a: Approval) => a.status === 'pending');
 
   const handleDecision = async (id: number, decision: 'approve' | 'deny') => {
     Alert.alert(
@@ -43,7 +43,7 @@ export default function HealingScreen() {
           onPress: async () => {
             setActing(id);
             try {
-              await post(`/api/healing/approvals/${id}/${decision}`);
+              await post(`/api/approvals/${id}/decide`, {decision: decision === 'approve' ? 'approved' : 'denied'});
               refresh();
             } catch (e: any) {
               Alert.alert('Error', e.message);
