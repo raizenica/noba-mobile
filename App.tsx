@@ -1,10 +1,12 @@
-import React, {useState, useEffect} from 'react';
+import React, {useEffect} from 'react';
 import {StatusBar, Text} from 'react-native';
-import {SafeAreaProvider, useSafeAreaInsets} from 'react-native-safe-area-context';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 
-import {loadConfig, isAuthenticated, isConfigured} from './src/services/api';
+import {loadConfig} from './src/services/api';
+import {useAuthStore} from './src/store/authStore';
+import {useDataStore} from './src/store/dataStore';
 import {colors} from './src/theme/colors';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -16,23 +18,46 @@ import SettingsScreen from './src/screens/SettingsScreen';
 const Tab = createBottomTabNavigator();
 
 export default function App() {
-  const [ready, setReady] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const isReady = useAuthStore(s => s.isReady);
+  const token = useAuthStore(s => s.token);
+  const serverUrl = useAuthStore(s => s.serverUrl);
+  const {fetchStats, fetchAlerts, fetchApprovals, fetchHealth} = useDataStore();
 
+  // Hydrate auth store from AsyncStorage on first mount
   useEffect(() => {
     loadConfig().then(() => {
-      setLoggedIn(isConfigured() && isAuthenticated());
-      setReady(true);
+      useAuthStore.getState().hydrate();
     });
   }, []);
 
-  if (!ready) return null;
+  // Single polling layer — starts/stops with authentication state
+  useEffect(() => {
+    if (!token || !serverUrl) return;
+    fetchStats();
+    fetchAlerts();
+    fetchApprovals();
+    fetchHealth();
+    const t1 = setInterval(fetchStats, 5_000);
+    const t2 = setInterval(fetchAlerts, 15_000);
+    const t3 = setInterval(fetchApprovals, 10_000);
+    const t4 = setInterval(fetchHealth, 30_000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+      clearInterval(t3);
+      clearInterval(t4);
+    };
+  }, [token, serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!loggedIn) {
+  if (!isReady) {
+    return null;
+  }
+
+  if (!token || !serverUrl) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-        <LoginScreen onLogin={() => setLoggedIn(true)} />
+        <LoginScreen />
       </SafeAreaProvider>
     );
   }
@@ -61,15 +86,17 @@ export default function App() {
         <Tab.Navigator
           screenOptions={({route}) => {
             const icons: Record<string, string> = {
-              Dashboard: '\u25A3',  // ▣
-              Alerts: '\u25C6',     // ◆
-              Agents: '\u25CE',     // ◎
-              Healing: '\u2725',    // ✥
-              Settings: '\u2699',   // ⚙
+              Dashboard: '\u25A3',
+              Alerts: '\u25C6',
+              Agents: '\u25CE',
+              Healing: '\u2725',
+              Settings: '\u2699',
             };
             return {
               tabBarIcon: ({color}) => (
-                <Text style={{fontSize: 18, color, marginBottom: -2}}>{icons[route.name] || '\u25CB'}</Text>
+                <Text style={{fontSize: 18, color, marginBottom: -2}}>
+                  {icons[route.name] || '\u25CB'}
+                </Text>
               ),
               tabBarStyle: {
                 backgroundColor: colors.surface,
@@ -88,10 +115,7 @@ export default function App() {
           <Tab.Screen name="Alerts" component={AlertsScreen} />
           <Tab.Screen name="Agents" component={AgentsScreen} />
           <Tab.Screen name="Healing" component={HealingScreen} />
-          <Tab.Screen
-            name="Settings"
-            children={() => <SettingsScreen onLogout={() => setLoggedIn(false)} />}
-          />
+          <Tab.Screen name="Settings" component={SettingsScreen} />
         </Tab.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
