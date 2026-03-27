@@ -1,51 +1,117 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import {colors, spacing, borderRadius, fontSize} from '../theme/colors';
-import {setServer, setToken, post, isConfigured, getServerUrl} from '../services/api';
+import {post as apiPost, isConfigured, getServerUrl} from '../services/api';
+import {useAuthStore, AuthMethod} from '../store/authStore';
 
-interface Props {
-  onLogin: () => void;
-}
-
-export default function LoginScreen({onLogin}: Props) {
-  const [serverUrl, setServerUrl] = useState(getServerUrl() || '');
+export default function LoginScreen() {
+  const {setServerUrl, setAuth, setMethods, methods} = useAuthStore();
+  const [serverInput, setServerInput] = useState(getServerUrl() || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [needs2fa, setNeeds2fa] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(
+    isConfigured(),
+  );
 
-  const handleLogin = async () => {
+  // Fetch capabilities when server URL is confirmed (on blur)
+  const loadCapabilities = useCallback(
+    async (url: string) => {
+      if (!url.trim()) {
+        return;
+      }
+      try {
+        await setServerUrl(url.trim());
+        const base = url.trim().replace(/\/+$/, '');
+        const resp = await fetch(`${base}/api/auth/capabilities`, {
+          headers: {Accept: 'application/json'},
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (Array.isArray(json.methods)) {
+            setMethods(json.methods);
+          }
+        }
+      } catch {
+        // Non-fatal — falls back to local method (already the default)
+      }
+      setCapabilitiesLoaded(true);
+    },
+    [setServerUrl, setMethods],
+  );
+
+  // Handle SAML deep link return: noba://auth?code=xxx
+  useEffect(() => {
+    const handleUrl = async ({url}: {url: string}) => {
+      if (!url.startsWith('noba://auth')) {
+        return;
+      }
+      const codeMatch = url.match(/[?&]code=([^&]+)/);
+      if (!codeMatch) {
+        return;
+      }
+      const code = decodeURIComponent(codeMatch[1]);
+      try {
+        setLoading(true);
+        setError('');
+        const data = (await apiPost('/api/auth/exchange', {code})) as any;
+        if (data?.token) {
+          await setAuth(data.token);
+        } else {
+          throw new Error('No token in exchange response');
+        }
+      } catch (e: any) {
+        setError('SSO failed: ' + (e.message || 'unknown error'));
+        setLoading(false);
+      }
+    };
+
+    const sub = Linking.addEventListener('url', handleUrl);
+    // Handle cold-start deep link (app launched via deep link while closed)
+    Linking.getInitialURL().then(url => {
+      if (url) {
+        handleUrl({url});
+      }
+    });
+    return () => sub.remove();
+  }, [setAuth]);
+
+  const handleLocalLogin = async () => {
     setError('');
     setLoading(true);
-
     try {
-      if (!serverUrl.trim()) {
+      if (!serverInput.trim()) {
         throw new Error('Enter your NOBA server URL');
       }
-
-      await setServer(serverUrl.trim());
-
+      if (!capabilitiesLoaded) {
+        await loadCapabilities(serverInput);
+      }
       const body: any = {username: username.trim(), password};
       if (needs2fa && totpCode) {
         body.totp_code = totpCode.trim();
       }
-
-      const data = await post('/api/login', body);
-
+      const data = (await apiPost('/api/login', body)) as any;
       if (data.requires_2fa && !needs2fa) {
         setNeeds2fa(true);
         setLoading(false);
         return;
       }
-
       if (data.token) {
-        await setToken(data.token);
-        onLogin();
+        await setAuth(data.token);
       } else {
         throw new Error('No token received');
       }
@@ -56,11 +122,27 @@ export default function LoginScreen({onLogin}: Props) {
     }
   };
 
+  const handleSamlLogin = async (method: AuthMethod) => {
+    if (!serverInput.trim()) {
+      setError('Enter your NOBA server URL first');
+      return;
+    }
+    const base = serverInput.trim().replace(/\/+$/, '');
+    const samlUrl = `${base}/api/saml/login?redirect_uri=${encodeURIComponent(
+      'noba://auth',
+    )}`;
+    await Linking.openURL(samlUrl);
+  };
+
+  const samlMethods = methods.filter(m => m.type !== 'local');
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>NOBA</Text>
           <Text style={styles.subtitle}>Command Center</Text>
@@ -70,8 +152,9 @@ export default function LoginScreen({onLogin}: Props) {
           <Text style={styles.label}>Server URL</Text>
           <TextInput
             style={styles.input}
-            value={serverUrl}
-            onChangeText={setServerUrl}
+            value={serverInput}
+            onChangeText={setServerInput}
+            onBlur={() => loadCapabilities(serverInput)}
             placeholder="https://noba.example.com"
             placeholderTextColor={colors.textDim}
             autoCapitalize="none"
@@ -119,7 +202,7 @@ export default function LoginScreen({onLogin}: Props) {
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
+            onPress={handleLocalLogin}
             disabled={loading}>
             {loading ? (
               <ActivityIndicator color={colors.text} />
@@ -129,6 +212,16 @@ export default function LoginScreen({onLogin}: Props) {
               </Text>
             )}
           </TouchableOpacity>
+
+          {samlMethods.map(method => (
+            <TouchableOpacity
+              key={method.type}
+              style={[styles.button, styles.buttonSSO]}
+              onPress={() => handleSamlLogin(method)}
+              disabled={loading}>
+              <Text style={styles.buttonText}>{method.display_name}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -172,6 +265,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: 'center',
     marginTop: spacing.xl,
+  },
+  buttonSSO: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    marginTop: spacing.md,
   },
   buttonDisabled: {opacity: 0.6},
   buttonText: {
