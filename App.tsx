@@ -21,7 +21,7 @@ export default function App() {
   const isReady = useAuthStore(s => s.isReady);
   const token = useAuthStore(s => s.token);
   const serverUrl = useAuthStore(s => s.serverUrl);
-  const {fetchStats, fetchAlerts, fetchApprovals, fetchHealth} = useDataStore();
+  const {fetchStats, fetchAlerts, fetchApprovals, fetchHealth, fetchNotifs, fetchLedger} = useDataStore();
   const unresolvedAlertCount = useDataStore(s => s.alerts.filter((a: any) => !a.resolved_at).length);
   const pendingApprovalCount = useDataStore(s => s.approvals.filter((a: any) => a.status === 'pending').length);
 
@@ -35,19 +35,16 @@ export default function App() {
   // Single polling layer — starts/stops with authentication state
   useEffect(() => {
     if (!token || !serverUrl) return;
-    fetchStats();
-    fetchAlerts();
-    fetchApprovals();
-    fetchHealth();
-    const t1 = setInterval(fetchStats, 5_000);
-    const t2 = setInterval(fetchAlerts, 15_000);
-    const t3 = setInterval(fetchApprovals, 10_000);
-    const t4 = setInterval(fetchHealth, 30_000);
+    fetchStats(); fetchAlerts(); fetchApprovals(); fetchHealth(); fetchNotifs(); fetchLedger();
+    const t1 = setInterval(fetchStats,     5_000);
+    const t2 = setInterval(fetchAlerts,   15_000);
+    const t3 = setInterval(fetchApprovals,10_000);
+    const t4 = setInterval(fetchHealth,   30_000);
+    const t5 = setInterval(fetchLedger,   30_000);
+    const t6 = setInterval(fetchNotifs,   60_000);
     return () => {
-      clearInterval(t1);
-      clearInterval(t2);
-      clearInterval(t3);
-      clearInterval(t4);
+      clearInterval(t1); clearInterval(t2); clearInterval(t3);
+      clearInterval(t4); clearInterval(t5); clearInterval(t6);
     };
   }, [token, serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
