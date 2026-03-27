@@ -1,30 +1,13 @@
-import React, {useCallback} from 'react';
+import React from 'react';
 import {View, Text, ScrollView, StyleSheet, RefreshControl} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize} from '../theme/colors';
-import {get} from '../services/api';
-import {usePolling} from '../hooks/usePolling';
+import {useDataStore} from '../store/dataStore';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 
-interface Stats {
-  cpuPercent?: number;
-  memPercent?: number;
-  swapPercent?: number;
-  uptime?: string;
-  disks?: Array<{mount: string; percent: number}>;
-  services?: Array<{name: string; status: string}>;
-  agents?: Array<{
-    hostname: string;
-    cpu_percent: number;
-    mem_percent: number;
-    online: boolean;
-    platform: string;
-    disks: Array<{mount: string; percent: number}>;
-  }>;
-  collector_status?: string;
-  [key: string]: any;
-}
+interface DiskEntry {mount: string; percent: number}
+interface AgentEntry {hostname: string; cpu_percent: number; mem_percent: number; online: boolean; platform: string; disks: DiskEntry[]}
 
 function GaugeBar({label, value, color}: {label: string; value: number; color: string}) {
   return (
@@ -47,20 +30,21 @@ const gaugeStyles = StyleSheet.create({
 });
 
 export default function DashboardScreen() {
-  const fetcher = useCallback(() => get<Stats>('/api/stats'), []);
-  const {data, loading, error, refresh} = usePolling(fetcher, 5000);
+  const stats = useDataStore(s => s.stats);
+  const error = useDataStore(s => s.statsError);
+  const loading = stats === null && !error;
   const insets = useSafeAreaInsets();
 
-  const cpu = data?.cpuPercent ?? 0;
-  const mem = data?.memPercent ?? 0;
-  const swap = data?.swapPercent ?? 0;
-  const rootDisk = data?.disks?.find(d => d.mount === '/');
+  const cpu = stats?.cpuPercent ?? 0;
+  const mem = stats?.memPercent ?? 0;
+  const swap = stats?.swapPercent ?? 0;
+  const rootDisk = stats?.disks?.find((d: DiskEntry) => d.mount === '/');
   const disk = rootDisk?.percent ?? 0;
 
-  const agents = data?.agents ?? [];
-  const onlineAgents = agents.filter(a => a.online).length;
+  const agents: AgentEntry[] = stats?.agents ?? [];
+  const onlineAgents = agents.filter((a: AgentEntry) => a.online).length;
 
-  const services = data?.services ?? [];
+  const services: any[] = stats?.services ?? [];
   const servicesUp = services.filter((s: any) => s.status === 'running' || s.status === 'active').length;
 
   const colorFor = (v: number) =>
@@ -69,10 +53,10 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={[styles.container, {paddingTop: insets.top}]}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}>
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => useDataStore.getState().fetchStats()} tintColor={colors.primary} />}>
       <View style={styles.header}>
         <Text style={styles.title}>Dashboard</Text>
-        <StatusBadge status={data?.collector_status || 'unknown'} size="md" />
+        <StatusBadge status={stats?.collector_status || 'unknown'} size="md" />
       </View>
 
       <Card title="System Resources">
@@ -93,7 +77,7 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
         </View>
-        {agents.slice(0, 5).map((agent, i) => (
+        {agents.slice(0, 5).map((agent: AgentEntry, i: number) => (
           <View key={i} style={styles.agentRow}>
             <StatusBadge status={agent.online ? 'online' : 'offline'} />
             <Text style={styles.agentName}>{agent.hostname}</Text>
@@ -105,7 +89,7 @@ export default function DashboardScreen() {
       <Card title="Quick Stats">
         <View style={styles.statRow}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{data?.uptime || '--'}</Text>
+            <Text style={styles.statValue}>{stats?.uptime || '--'}</Text>
             <Text style={styles.statLabel}>Uptime</Text>
           </View>
           <View style={styles.stat}>
@@ -119,9 +103,9 @@ export default function DashboardScreen() {
         </View>
       </Card>
 
-      {data?.disks && data.disks.length > 1 && (
+      {stats?.disks && stats.disks.length > 1 && (
         <Card title="Storage">
-          {data.disks.map((d, i) => (
+          {stats.disks.map((d: DiskEntry, i: number) => (
             <GaugeBar key={i} label={d.mount} value={d.percent} color={colorFor(d.percent)} />
           ))}
         </Card>

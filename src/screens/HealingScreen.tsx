@@ -1,9 +1,8 @@
-import React, {useCallback, useState} from 'react';
+import React, {useState} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity, Alert} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
-import {get, post} from '../services/api';
-import {usePolling} from '../hooks/usePolling';
+import {useDataStore} from '../store/dataStore';
 import StatusBadge from '../components/StatusBadge';
 
 interface Approval {
@@ -25,13 +24,23 @@ function timeAgo(ts: number): string {
 }
 
 export default function HealingScreen() {
-  const fetcher = useCallback(() => get<Approval[]>('/api/approvals'), []);
-  const {data, loading, error, refresh} = usePolling(fetcher, 10000);
+  const approvals = useDataStore(s => s.approvals);
+  const error = useDataStore(s => s.approvalsError);
+  const decideApproval = useDataStore(s => s.decideApproval);
+  const loading = approvals.length === 0 && !error;
   const [acting, setActing] = useState<number | null>(null);
 
-  const queue = (data || []).filter((a: Approval) => a.status === 'pending');
+  const queue = approvals.filter((a: Approval) => a.status === 'pending');
 
-  const handleDecision = async (id: number, decision: 'approve' | 'deny') => {
+  const handleDecide = async (id: number, decision: 'approve' | 'deny') => {
+    try {
+      await decideApproval(id, decision);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const handleDecision = (id: number, decision: 'approve' | 'deny') => {
     Alert.alert(
       `${decision === 'approve' ? 'Approve' : 'Deny'} Action`,
       `Are you sure you want to ${decision} this healing action?`,
@@ -43,10 +52,7 @@ export default function HealingScreen() {
           onPress: async () => {
             setActing(id);
             try {
-              await post(`/api/approvals/${id}/decide`, {decision: decision === 'approve' ? 'approved' : 'denied'});
-              refresh();
-            } catch (e: any) {
-              Alert.alert('Error', e.message);
+              await handleDecide(id, decision);
             } finally {
               setActing(null);
             }
@@ -109,7 +115,7 @@ export default function HealingScreen() {
         data={queue}
         keyExtractor={item => String(item.id)}
         renderItem={renderApproval}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => useDataStore.getState().fetchApprovals()} tintColor={colors.primary} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>&#10003;</Text>

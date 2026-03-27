@@ -1,9 +1,10 @@
-import React, {useCallback} from 'react';
+import React, {useEffect, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
-import {get, clearAuth, getServerUrl} from '../services/api';
-import {usePolling} from '../hooks/usePolling';
+import {get, getServerUrl} from '../services/api';
+import {useDataStore} from '../store/dataStore';
+import {useAuthStore} from '../store/authStore';
 import Card from '../components/Card';
 import StatusBadge from '../components/StatusBadge';
 
@@ -33,15 +34,15 @@ function formatUptime(seconds: number): string {
   return `${m}m`;
 }
 
-interface Props {
-  onLogout: () => void;
-}
+export default function SettingsScreen() {
+  const health = useDataStore(s => s.health);
+  const healthError = useDataStore(s => s.healthError);
+  const logout = useAuthStore(s => s.logout);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
-export default function SettingsScreen({onLogout}: Props) {
-  const healthFetcher = useCallback(() => get<HealthData>('/api/health'), []);
-  const profileFetcher = useCallback(() => get<Profile>('/api/me'), []);
-  const {data: health} = usePolling(healthFetcher, 30000);
-  const {data: profile} = usePolling(profileFetcher, 60000);
+  useEffect(() => {
+    get<Profile>('/api/me').then(setProfile).catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -49,9 +50,8 @@ export default function SettingsScreen({onLogout}: Props) {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: async () => {
-          await clearAuth();
-          onLogout();
+        onPress: () => {
+          logout();
         },
       },
     ]);
@@ -129,6 +129,8 @@ export default function SettingsScreen({onLogout}: Props) {
         </Card>
       )}
 
+      {healthError && <Text style={styles.error}>{healthError}</Text>}
+
       <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -144,6 +146,7 @@ const styles = StyleSheet.create({
   label: {color: colors.textMuted, fontSize: fontSize.sm},
   value: {color: colors.text, fontSize: fontSize.sm, fontWeight: '600', maxWidth: '60%', textAlign: 'right'},
   detail: {color: colors.textDim, fontSize: fontSize.xs},
+  error: {color: colors.danger, textAlign: 'center', marginTop: spacing.sm},
   logoutBtn: {
     backgroundColor: colors.danger + '22',
     borderWidth: 1,

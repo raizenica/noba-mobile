@@ -1,9 +1,8 @@
-import React, {useCallback} from 'react';
+import React from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
-import {get} from '../services/api';
-import {usePolling} from '../hooks/usePolling';
+import {useDataStore} from '../store/dataStore';
 import StatusBadge from '../components/StatusBadge';
 import Card from '../components/Card';
 
@@ -19,14 +18,11 @@ interface Agent {
 }
 
 export default function AgentsScreen() {
-  const fetcher = useCallback(async () => {
-    const stats = await get<any>('/api/stats');
-    return (stats?.agents || []) as Agent[];
-  }, []);
-  const {data, loading, error, refresh} = usePolling(fetcher, 10000);
+  const stats = useDataStore(s => s.stats);
+  const error = useDataStore(s => s.statsError);
+  const agents: any[] = stats?.agents || [];
+  const loading = stats === null && !error;
   const insets = useSafeAreaInsets();
-
-  const agents = data || [];
 
   const renderAgent = ({item}: {item: Agent}) => (
     <Card accent={item.online ? colors.success : colors.danger}>
@@ -75,7 +71,7 @@ export default function AgentsScreen() {
         data={agents}
         keyExtractor={item => item.hostname}
         renderItem={renderAgent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => useDataStore.getState().fetchStats()} tintColor={colors.primary} />}
         ListEmptyComponent={
           <Text style={styles.empty}>{loading ? 'Loading...' : 'No agents connected'}</Text>
         }

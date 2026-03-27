@@ -1,9 +1,8 @@
-import React, {useCallback} from 'react';
+import React from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
-import {get} from '../services/api';
-import {usePolling} from '../hooks/usePolling';
+import {useDataStore} from '../store/dataStore';
 import StatusBadge from '../components/StatusBadge';
 
 interface Alert {
@@ -24,10 +23,9 @@ function timeAgo(ts: number): string {
 }
 
 export default function AlertsScreen() {
-  const fetcher = useCallback(() => get<Alert[]>('/api/alert-history?limit=50'), []);
-  const {data, loading, error, refresh} = usePolling(fetcher, 15000);
-
-  const alerts = data || [];
+  const alerts = useDataStore(s => s.alerts);
+  const error = useDataStore(s => s.alertsError);
+  const loading = alerts.length === 0 && !error;
 
   const renderAlert = ({item}: {item: Alert}) => {
     const severityColor =
@@ -63,7 +61,7 @@ export default function AlertsScreen() {
         data={alerts}
         keyExtractor={item => String(item.id)}
         renderItem={renderAlert}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => useDataStore.getState().fetchAlerts()} tintColor={colors.primary} />}
         ListEmptyComponent={
           <Text style={styles.empty}>{loading ? 'Loading...' : 'No alerts'}</Text>
         }
