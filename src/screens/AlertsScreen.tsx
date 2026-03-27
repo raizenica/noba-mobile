@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
@@ -22,12 +22,31 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function formatTs(ts: number): string {
+  return new Date(ts * 1000).toLocaleString();
+}
+
 export default function AlertsScreen() {
   const alerts = useDataStore(s => s.alerts);
   const error = useDataStore(s => s.alertsError);
   const loading = alerts.length === 0 && !error;
+  const [filter, setFilter] = useState<'active' | 'all'>('active');
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const displayAlerts = filter === 'active'
+    ? alerts.filter((a: Alert) => !a.resolved_at)
+    : alerts;
+
+  const toggleExpand = (id: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const renderAlert = ({item}: {item: Alert}) => {
+    const isExpanded = expanded.has(item.id);
     const severityColor =
       item.severity === 'critical' || item.severity === 'danger'
         ? colors.danger
@@ -36,7 +55,10 @@ export default function AlertsScreen() {
         : colors.info;
 
     return (
-      <TouchableOpacity style={[styles.alertCard, {borderLeftColor: severityColor}]}>
+      <TouchableOpacity
+        style={[styles.alertCard, {borderLeftColor: severityColor}]}
+        onPress={() => toggleExpand(item.id)}
+        activeOpacity={0.75}>
         <View style={styles.alertHeader}>
           <StatusBadge
             status={item.resolved_at ? 'ok' : item.severity}
@@ -45,25 +67,56 @@ export default function AlertsScreen() {
           <Text style={styles.time}>{timeAgo(item.timestamp)}</Text>
         </View>
         <Text style={styles.ruleId}>{item.rule_id}</Text>
-        <Text style={styles.message} numberOfLines={2}>
+        <Text style={styles.message} numberOfLines={isExpanded ? undefined : 2}>
           {item.message}
         </Text>
+        {isExpanded && (
+          <View style={styles.detail}>
+            <Text style={styles.detailText}>Triggered: {formatTs(item.timestamp)}</Text>
+            {item.resolved_at ? (
+              <Text style={styles.detailText}>Resolved: {formatTs(item.resolved_at)}</Text>
+            ) : (
+              <Text style={[styles.detailText, {color: colors.warning}]}>Still active</Text>
+            )}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
 
   const insets = useSafeAreaInsets();
+  const activeCount = alerts.filter((a: Alert) => !a.resolved_at).length;
 
   return (
     <View style={[styles.container, {paddingTop: insets.top}]}>
-      <Text style={styles.title}>Alerts</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Alerts</Text>
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={[styles.filterBtn, filter === 'active' && styles.filterBtnActive]}
+            onPress={() => setFilter('active')}>
+            <Text style={[styles.filterText, filter === 'active' && styles.filterTextActive]}>
+              Active{activeCount > 0 ? ` (${activeCount})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterBtn, filter === 'all' && styles.filterBtnActive]}
+            onPress={() => setFilter('all')}>
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+              All ({alerts.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <FlatList
-        data={alerts}
+        data={displayAlerts}
         keyExtractor={item => String(item.id)}
         renderItem={renderAlert}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => useDataStore.getState().fetchAlerts()} tintColor={colors.primary} />}
         ListEmptyComponent={
-          <Text style={styles.empty}>{loading ? 'Loading...' : 'No alerts'}</Text>
+          <Text style={styles.empty}>
+            {loading ? 'Loading...' : filter === 'active' ? 'No active alerts' : 'No alerts'}
+          </Text>
         }
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -73,7 +126,19 @@ export default function AlertsScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background, padding: spacing.lg},
-  title: {fontSize: fontSize.xxl, fontWeight: '800', color: colors.text, marginBottom: spacing.lg},
+  header: {marginBottom: spacing.lg},
+  title: {fontSize: fontSize.xxl, fontWeight: '800', color: colors.text, marginBottom: spacing.md},
+  filterRow: {flexDirection: 'row', gap: spacing.sm},
+  filterBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterBtnActive: {borderColor: colors.primary, backgroundColor: colors.primary + '22'},
+  filterText: {color: colors.textMuted, fontSize: fontSize.sm, fontWeight: '600'},
+  filterTextActive: {color: colors.primary},
   alertCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
@@ -87,6 +152,8 @@ const styles = StyleSheet.create({
   time: {color: colors.textDim, fontSize: fontSize.xs},
   ruleId: {color: colors.primaryLight, fontSize: fontSize.xs, marginBottom: spacing.xs},
   message: {color: colors.text, fontSize: fontSize.sm, lineHeight: 20},
+  detail: {marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border},
+  detailText: {color: colors.textMuted, fontSize: fontSize.xs, marginBottom: 2},
   empty: {color: colors.textMuted, textAlign: 'center', marginTop: spacing.xxl, fontSize: fontSize.md},
   error: {color: colors.danger, textAlign: 'center', marginTop: spacing.sm},
 });

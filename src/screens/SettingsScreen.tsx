@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert} from 'react-native';
+import {View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {get, getServerUrl} from '../services/api';
@@ -38,7 +38,11 @@ export default function SettingsScreen() {
   const health = useDataStore(s => s.health);
   const healthError = useDataStore(s => s.healthError);
   const logout = useAuthStore(s => s.logout);
+  const setServerUrl = useAuthStore(s => s.setServerUrl);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [editingServer, setEditingServer] = useState(false);
+  const [serverInput, setServerInput] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     get<Profile>('/api/me').then(setProfile).catch(() => {});
@@ -47,18 +51,30 @@ export default function SettingsScreen() {
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       {text: 'Cancel', style: 'cancel'},
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: () => {
-          logout();
-        },
-      },
+      {text: 'Sign Out', style: 'destructive', onPress: () => { logout(); }},
     ]);
   };
 
-  const comp = health?.components;
+  const startEditServer = () => {
+    setServerInput(getServerUrl());
+    setEditingServer(true);
+  };
 
+  const saveServer = async () => {
+    const url = serverInput.trim();
+    if (!url) return;
+    setSaving(true);
+    try {
+      await setServerUrl(url);
+      setEditingServer(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update server URL');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const comp = health?.components;
   const insets = useSafeAreaInsets();
 
   return (
@@ -77,10 +93,43 @@ export default function SettingsScreen() {
       </Card>
 
       <Card title="Server">
-        <View style={styles.row}>
-          <Text style={styles.label}>URL</Text>
-          <Text style={styles.value} numberOfLines={1}>{getServerUrl()}</Text>
-        </View>
+        {editingServer ? (
+          <View style={styles.editServerBlock}>
+            <TextInput
+              style={styles.serverInput}
+              value={serverInput}
+              onChangeText={setServerInput}
+              placeholder="http://192.168.1.x:8080"
+              placeholderTextColor={colors.textDim}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            <View style={styles.editBtns}>
+              <TouchableOpacity
+                style={[styles.editBtn, styles.editBtnSave]}
+                onPress={saveServer}
+                disabled={saving}>
+                <Text style={styles.editBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editBtn, styles.editBtnCancel]}
+                onPress={() => setEditingServer(false)}>
+                <Text style={styles.editBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.row}>
+            <Text style={styles.label}>URL</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, styles.serverUrl]} numberOfLines={1}>{getServerUrl()}</Text>
+              <TouchableOpacity onPress={startEditServer} style={styles.changeBtn}>
+                <Text style={styles.changeBtnText}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
         <View style={styles.row}>
           <Text style={styles.label}>Version</Text>
           <Text style={styles.value}>{health?.version || '--'}</Text>
@@ -142,10 +191,35 @@ const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background, padding: spacing.lg},
   title: {fontSize: fontSize.xxl, fontWeight: '800', color: colors.text, marginBottom: spacing.lg},
   row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border},
-  rowRight: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+  rowRight: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1, justifyContent: 'flex-end'},
   label: {color: colors.textMuted, fontSize: fontSize.sm},
   value: {color: colors.text, fontSize: fontSize.sm, fontWeight: '600', maxWidth: '60%', textAlign: 'right'},
+  serverUrl: {maxWidth: '45%'},
   detail: {color: colors.textDim, fontSize: fontSize.xs},
+  changeBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  changeBtnText: {color: colors.primary, fontSize: fontSize.xs, fontWeight: '700'},
+  editServerBlock: {paddingVertical: spacing.md},
+  serverInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.sm,
+    padding: spacing.md,
+    color: colors.text,
+    fontSize: fontSize.sm,
+    marginBottom: spacing.sm,
+  },
+  editBtns: {flexDirection: 'row', gap: spacing.sm},
+  editBtn: {flex: 1, padding: spacing.md, borderRadius: borderRadius.sm, alignItems: 'center'},
+  editBtnSave: {backgroundColor: colors.primary},
+  editBtnCancel: {backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border},
+  editBtnText: {color: colors.text, fontWeight: '700', fontSize: fontSize.sm},
   error: {color: colors.danger, textAlign: 'center', marginTop: spacing.sm},
   logoutBtn: {
     backgroundColor: colors.danger + '22',

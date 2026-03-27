@@ -22,6 +22,8 @@ export default function App() {
   const token = useAuthStore(s => s.token);
   const serverUrl = useAuthStore(s => s.serverUrl);
   const {fetchStats, fetchAlerts, fetchApprovals, fetchHealth} = useDataStore();
+  const unresolvedAlertCount = useDataStore(s => s.alerts.filter((a: any) => !a.resolved_at).length);
+  const pendingApprovalCount = useDataStore(s => s.approvals.filter((a: any) => a.status === 'pending').length);
 
   // Hydrate auth store from AsyncStorage on first mount
   useEffect(() => {
@@ -92,12 +94,18 @@ export default function App() {
               Healing: '\u2725',
               Settings: '\u2699',
             };
+            const badge =
+              route.name === 'Alerts' && unresolvedAlertCount > 0 ? unresolvedAlertCount :
+              route.name === 'Healing' && pendingApprovalCount > 0 ? pendingApprovalCount :
+              undefined;
             return {
               tabBarIcon: ({color}) => (
                 <Text style={{fontSize: 18, color, marginBottom: -2}}>
                   {icons[route.name] || '\u25CB'}
                 </Text>
               ),
+              tabBarBadge: badge,
+              tabBarBadgeStyle: {backgroundColor: colors.danger, fontSize: 10, minWidth: 16, height: 16},
               tabBarStyle: {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.border,
