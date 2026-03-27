@@ -105,3 +105,9 @@ export const post = <T = any>(path: string, body?: unknown) =>
   api<T>(path, {method: 'POST', body});
 export const del = <T = any>(path: string) =>
   api<T>(path, {method: 'DELETE'});
+
+/** Called by authStore after hydration to sync module-level vars without re-reading AsyncStorage. */
+export function syncState(serverUrl: string, token: string): void {
+  _serverUrl = serverUrl.replace(/\/+$/, '');
+  _token = token;
+}
