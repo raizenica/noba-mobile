@@ -1,8 +1,12 @@
-import React, {useEffect} from 'react';
-import {StatusBar, Text} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {StatusBar, Text, View, StyleSheet, TouchableOpacity} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NavigationContainer} from '@react-navigation/native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import Icon from 'react-native-vector-icons/Ionicons';
+import ReactNativeBiometrics from 'react-native-biometrics';
+
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import {loadConfig} from './src/services/api';
 import {useAuthStore} from './src/store/authStore';
@@ -11,11 +15,99 @@ import {colors} from './src/theme/colors';
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import AlertsScreen from './src/screens/AlertsScreen';
+import AlertDetailScreen from './src/screens/AlertDetailScreen';
 import AgentsScreen from './src/screens/AgentsScreen';
+import AgentDetailScreen from './src/screens/AgentDetailScreen';
 import HealingScreen from './src/screens/HealingScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
+const AgentsStack = createNativeStackNavigator();
+const AlertsStack = createNativeStackNavigator();
+
+const stackScreenOptions = {
+  headerStyle: {backgroundColor: colors.surface},
+  headerTintColor: colors.text,
+  headerTitleStyle: {fontWeight: '600' as const},
+  headerShadowVisible: false,
+};
+
+function AgentsStackScreen() {
+  return (
+    <AgentsStack.Navigator screenOptions={stackScreenOptions}>
+      <AgentsStack.Screen name="AgentsList" component={AgentsScreen} options={{headerShown: false}} />
+      <AgentsStack.Screen name="AgentDetail" component={AgentDetailScreen} options={({route}: any) => ({title: route.params.hostname})} />
+    </AgentsStack.Navigator>
+  );
+}
+
+function AlertsStackScreen() {
+  return (
+    <AlertsStack.Navigator screenOptions={stackScreenOptions}>
+      <AlertsStack.Screen name="AlertsList" component={AlertsScreen} options={{headerShown: false}} />
+      <AlertsStack.Screen name="AlertDetail" component={AlertDetailScreen} options={{title: 'Alert'}} />
+    </AlertsStack.Navigator>
+  );
+}
+const rnBiometrics = new ReactNativeBiometrics();
+
+const TAB_ICONS: Record<string, [string, string]> = {
+  Dashboard: ['grid', 'grid-outline'],
+  Alerts: ['warning', 'warning-outline'],
+  Agents: ['hardware-chip', 'hardware-chip-outline'],
+  Healing: ['pulse', 'pulse-outline'],
+  Settings: ['settings', 'settings-outline'],
+};
+
+function BiometricGate({children}: {children: React.ReactNode}) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    rnBiometrics.isSensorAvailable().then(({available}) => {
+      if (!available) {
+        setUnlocked(true);
+        setBiometricAvailable(false);
+      } else {
+        setBiometricAvailable(true);
+        promptBiometric();
+      }
+    }).catch(() => {
+      setUnlocked(true);
+      setBiometricAvailable(false);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const promptBiometric = () => {
+    rnBiometrics.simplePrompt({promptMessage: 'Unlock NOBA'}).then(({success}) => {
+      if (success) setUnlocked(true);
+    }).catch(() => {});
+  };
+
+  if (unlocked) return <>{children}</>;
+
+  return (
+    <View style={bioStyles.container}>
+      <Icon name="lock-closed" size={48} color={colors.primary} />
+      <Text style={bioStyles.title}>NOBA is locked</Text>
+      <Text style={bioStyles.subtitle}>Authenticate to continue</Text>
+      {biometricAvailable && (
+        <TouchableOpacity style={bioStyles.btn} onPress={promptBiometric}>
+          <Icon name="finger-print" size={20} color={colors.text} />
+          <Text style={bioStyles.btnText}>Unlock</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const bioStyles = StyleSheet.create({
+  container: {flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 32},
+  title: {fontSize: 22, fontWeight: '800', color: colors.text, marginTop: 20},
+  subtitle: {fontSize: 14, color: colors.textMuted, marginTop: 8, marginBottom: 32},
+  btn: {flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8},
+  btnText: {color: colors.text, fontWeight: '700', fontSize: 15},
+});
 
 export default function App() {
   const isReady = useAuthStore(s => s.isReady);
@@ -64,6 +156,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <BiometricGate>
       <NavigationContainer
         theme={{
           dark: true,
@@ -84,22 +177,14 @@ export default function App() {
         }}>
         <Tab.Navigator
           screenOptions={({route}) => {
-            const icons: Record<string, string> = {
-              Dashboard: '\u25A3',
-              Alerts: '\u25C6',
-              Agents: '\u25CE',
-              Healing: '\u2725',
-              Settings: '\u2699',
-            };
             const badge =
               route.name === 'Alerts' && unresolvedAlertCount > 0 ? unresolvedAlertCount :
               route.name === 'Healing' && pendingApprovalCount > 0 ? pendingApprovalCount :
               undefined;
+            const [filled, outline] = TAB_ICONS[route.name] || ['ellipse', 'ellipse-outline'];
             return {
-              tabBarIcon: ({color}) => (
-                <Text style={{fontSize: 18, color, marginBottom: -2}}>
-                  {icons[route.name] || '\u25CB'}
-                </Text>
+              tabBarIcon: ({color, focused}) => (
+                <Icon name={focused ? filled : outline} size={22} color={color} />
               ),
               tabBarBadge: badge,
               tabBarBadgeStyle: {backgroundColor: colors.danger, fontSize: 10, minWidth: 16, height: 16},
@@ -117,12 +202,13 @@ export default function App() {
             };
           }}>
           <Tab.Screen name="Dashboard" component={DashboardScreen} />
-          <Tab.Screen name="Alerts" component={AlertsScreen} />
-          <Tab.Screen name="Agents" component={AgentsScreen} />
+          <Tab.Screen name="Alerts" component={AlertsStackScreen} />
+          <Tab.Screen name="Agents" component={AgentsStackScreen} />
           <Tab.Screen name="Healing" component={HealingScreen} />
           <Tab.Screen name="Settings" component={SettingsScreen} />
         </Tab.Navigator>
       </NavigationContainer>
+      </BiometricGate>
     </SafeAreaProvider>
   );
 }

@@ -6,8 +6,11 @@
 import {create} from 'zustand';
 import {get as apiGet, post as apiPost} from '../services/api';
 
+const HISTORY_SIZE = 20; // ~100s of sparkline data at 5s polling
+
 interface DataState {
   stats: any;
+  statsHistory: {cpu: number; mem: number}[];
   alerts: any[];
   approvals: any[];
   health: any;
@@ -33,6 +36,7 @@ interface DataState {
 
 export const useDataStore = create<DataState>()((set, getState) => ({
   stats: null,
+  statsHistory: [],
   alerts: [],
   approvals: [],
   health: null,
@@ -49,7 +53,9 @@ export const useDataStore = create<DataState>()((set, getState) => ({
   fetchStats: async () => {
     try {
       const data = await apiGet('/api/stats');
-      set({stats: data, statsError: null});
+      const prev = getState().statsHistory;
+      const next = [...prev, {cpu: data.cpuPercent ?? 0, mem: data.memPercent ?? 0}].slice(-HISTORY_SIZE);
+      set({stats: data, statsHistory: next, statsError: null});
     } catch (e: any) {
       set({statsError: e.message});
     }

@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {useDataStore} from '../store/dataStore';
 import StatusBadge from '../components/StatusBadge';
@@ -54,6 +55,7 @@ export default function AgentsScreen() {
   const agents: any[] = stats?.agents || [];
   const loading = stats === null && !error;
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggleExpand = (hostname: string) => {
@@ -67,13 +69,13 @@ export default function AgentsScreen() {
   const renderAgent = ({item}: {item: Agent}) => {
     const isExpanded = expanded.has(item.hostname);
     return (
-      <TouchableOpacity onPress={() => toggleExpand(item.hostname)} activeOpacity={0.8}>
+      <TouchableOpacity onPress={() => navigation.navigate('AgentDetail', {hostname: item.hostname})} activeOpacity={0.8}>
         <Card accent={item.online ? colors.success : colors.danger}>
           <View style={styles.agentHeader}>
             <Text style={styles.hostname}>{item.hostname}</Text>
             <View style={styles.headerRight}>
               <StatusBadge status={item.online ? 'online' : 'offline'} size="md" />
-              <Text style={styles.chevron}>{isExpanded ? '▲' : '▼'}</Text>
+              <Text style={styles.chevron}>›</Text>
             </View>
           </View>
 

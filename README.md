@@ -1,97 +1,86 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# NOBA Mobile
 
-# Getting Started
+Mobile companion app for [NOBA Command Center](https://github.com/raizenica/noba-enterprise). Monitor your infrastructure, review alerts, and approve self-healing actions from your phone.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+**iOS & Android** | React Native | TypeScript
 
-## Step 1: Start Metro
+## Features
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- **Dashboard** — Real-time CPU, memory, swap, disk gauges with color thresholds. Agent overview with online/offline status. Service health summary. Notification feed.
+- **Alerts** — Alert history feed with severity badges, active/all filter, expandable detail with timestamps.
+- **Agents** — Per-agent cards with CPU, memory, architecture, disk usage breakdowns. Expandable detail with uptime and platform info.
+- **Healing** — Approve or deny pending self-healing actions with confirmation dialogs. Healing history ledger with outcome badges.
+- **Settings** — User profile, server info, component health (database, collector, agents, integrations), logout.
+- **Biometric lock** — Face ID / fingerprint gate after initial login.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Screenshots
 
-```sh
-# Using npm
-npm start
+*Coming soon*
 
-# OR using Yarn
-yarn start
-```
+## Setup
 
-## Step 2: Build and run your app
+### Prerequisites
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+- Node.js >= 22.11.0
+- React Native CLI environment ([setup guide](https://reactnative.dev/docs/set-up-your-environment))
+- A running [NOBA server](https://github.com/raizenica/noba-enterprise)
 
-### Android
+### Install
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+git clone https://github.com/raizenica/noba-mobile.git
+cd noba-mobile
+npm install
 ```
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+cd ios && pod install && cd ..
+npx react-native run-ios
 ```
 
-Then, and every time you update your native dependencies, run:
+### Android
 
-```sh
-bundle exec pod install
+```bash
+npx react-native run-android
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### Connect to NOBA
 
-```sh
-# Using npm
-npm run ios
+On the login screen, enter your NOBA server URL (e.g. `http://192.168.1.10:8080`), username, and password. The app supports TOTP two-factor authentication.
 
-# OR using Yarn
-yarn ios
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | React Native 0.84 (bare CLI) |
+| Language | TypeScript 5.8 |
+| State | Zustand |
+| Navigation | React Navigation 7 (bottom tabs + native stack) |
+| Charts | react-native-chart-kit |
+| Icons | react-native-vector-icons (Ionicons) |
+| Storage | AsyncStorage |
+
+## Architecture
+
+```
+App.tsx                     Auth gate + bottom tab navigator
+src/
+  screens/                  Dashboard, Alerts, Agents, Healing, Settings, Login
+  components/               Card, StatusBadge (reusable)
+  services/api.ts           HTTP client (fetch, Bearer auth, timeout)
+  store/
+    authStore.ts            Auth state (Zustand + AsyncStorage)
+    dataStore.ts            Data fetching + polling (Zustand)
+  theme/colors.ts           Color palette, spacing, typography
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Related
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+- [NOBA Enterprise](https://github.com/raizenica/noba-enterprise) — the server
+- [NOBA Website](https://www.nobacmd.com) — project website
 
-## Step 3: Modify your app
+## License
 
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+MIT

@@ -1,9 +1,10 @@
 import React, {useState} from 'react';
 import {
   View, Text, ScrollView, StyleSheet, RefreshControl,
-  TouchableOpacity, Modal, FlatList, SafeAreaView,
+  TouchableOpacity, Modal, FlatList, SafeAreaView, Dimensions,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {LineChart} from 'react-native-chart-kit';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {useDataStore} from '../store/dataStore';
 import Card from '../components/Card';
@@ -48,10 +49,24 @@ function NotifLevelColor(level: string): string {
   return colors.info;
 }
 
+const screenWidth = Dimensions.get('window').width - spacing.lg * 2 - spacing.lg * 2; // account for container + card padding
+
+const chartConfig = {
+  backgroundGradientFrom: colors.surface,
+  backgroundGradientTo: colors.surface,
+  decimalPlaces: 0,
+  color: (opacity = 1) => `rgba(108, 92, 231, ${opacity})`,
+  labelColor: () => colors.textMuted,
+  propsForDots: {r: '0'},
+  propsForBackgroundLines: {stroke: colors.border, strokeDasharray: ''},
+  strokeWidth: 2,
+};
+
 export default function DashboardScreen() {
   const stats = useDataStore(s => s.stats);
   const error = useDataStore(s => s.statsError);
   const loading = stats === null && !error;
+  const statsHistory = useDataStore(s => s.statsHistory);
   const notifs = useDataStore(s => s.notifs);
   const unreadCount = useDataStore(s => s.unreadCount);
   const markNotifRead = useDataStore(s => s.markNotifRead);
@@ -105,6 +120,30 @@ export default function DashboardScreen() {
           <GaugeBar label="Memory" value={mem} color={colorFor(mem)} />
           <GaugeBar label="Swap" value={swap} color={colorFor(swap)} />
           <GaugeBar label="Disk" value={disk} color={colorFor(disk)} />
+          {statsHistory.length >= 3 && (
+            <View style={styles.chartContainer}>
+              <LineChart
+                data={{
+                  labels: [],
+                  datasets: [
+                    {data: statsHistory.map(h => h.cpu), color: () => colors.primary, strokeWidth: 2},
+                    {data: statsHistory.map(h => h.mem), color: () => colors.accent, strokeWidth: 2},
+                  ],
+                  legend: ['CPU', 'Memory'],
+                }}
+                width={screenWidth}
+                height={120}
+                chartConfig={chartConfig}
+                bezier
+                withVerticalLabels={false}
+                withHorizontalLabels={false}
+                withVerticalLines={false}
+                withHorizontalLines={false}
+                withShadow={false}
+                style={styles.chart}
+              />
+            </View>
+          )}
         </Card>
 
         <Card title="Agents" accent={onlineAgents === agents.length && agents.length > 0 ? colors.success : agents.length > 0 ? colors.warning : colors.textMuted}>
@@ -255,6 +294,8 @@ const styles = StyleSheet.create({
   serviceName: {flex: 1, color: colors.text, fontSize: fontSize.sm},
   serviceStatus: {fontSize: fontSize.xs, fontWeight: '600'},
   servicesEmpty: {color: colors.textMuted, fontSize: fontSize.sm, textAlign: 'center', paddingTop: spacing.sm},
+  chartContainer: {marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md},
+  chart: {borderRadius: 8, marginLeft: -16},
   error: {color: colors.danger, textAlign: 'center', marginTop: spacing.lg},
   // Modal
   modalBackdrop: {flex: 1, backgroundColor: 'rgba(0,0,0,0.5)'},

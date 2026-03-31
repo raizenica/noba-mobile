@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
 import {colors, spacing, fontSize, borderRadius} from '../theme/colors';
 import {useDataStore} from '../store/dataStore';
 import StatusBadge from '../components/StatusBadge';
@@ -30,6 +31,7 @@ export default function AlertsScreen() {
   const alerts = useDataStore(s => s.alerts);
   const error = useDataStore(s => s.alertsError);
   const loading = alerts.length === 0 && !error;
+  const navigation = useNavigation<any>();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
@@ -57,7 +59,7 @@ export default function AlertsScreen() {
     return (
       <TouchableOpacity
         style={[styles.alertCard, {borderLeftColor: severityColor}]}
-        onPress={() => toggleExpand(item.id)}
+        onPress={() => navigation.navigate('AlertDetail', {alertId: item.id})}
         activeOpacity={0.75}>
         <View style={styles.alertHeader}>
           <StatusBadge
