@@ -1,0 +1,56 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          cp android/app/build/outputs/apk/release/app-release.apk noba-mobile-v${VERSION}.apk
+          echo "APK_NAME=noba-mobile-v${VERSION}.apk" >> $GITHUB_ENV
+          echo "VERSION=v${VERSION}" >> $GITHUB_ENV
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete existing latest release if it exists
+          gh release delete latest --yes 2>/dev/null || true
+          # Create new release with the APK
+          gh release create latest \
+            --title "NOBA Mobile — Latest Build" \
+            --notes "Automated build from \`main\` branch.
+
+          **Version:** ${{ env.VERSION }}
+          **Commit:** [\`${GITHUB_SHA::7}\`](https://github.com/${{ github.repository }}/commit/${GITHUB_SHA})
+
+          Download the APK below and install on your Android device." \
+            --prerelease \
+            "${{ env.APK_NAME }}"
