@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 Kevin Van Nieuwenhove. All rights reserved.
+// NOBA Command Center — Licensed under Apache 2.0.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY_SERVER = '@noba_server_url';

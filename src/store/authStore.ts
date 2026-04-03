@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 Kevin Van Nieuwenhove. All rights reserved.
+// NOBA Command Center — Licensed under Apache 2.0.
 /**
  * Auth store — single source of truth for server URL, token, and auth methods.
  * Wraps api.ts for all persistence (AsyncStorage via api.ts existing keys).
